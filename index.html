@@ -169,7 +169,7 @@
 
       <div class="header">
         <h1>Robux Tax Calculator</h1>
-        <p>Pajak Roblox 30% • Gaya Topupgram</p>
+        <p>Sebelum hitung, masukkan jumlah robux terlebih dahulu.</p>
       </div>
 
       <div class="tabs">
@@ -189,7 +189,7 @@
     </div>
 
     <div class="footer">
-      © <span>Topupgram</span> • Kalkulator Pajak Robux
+      © <span>Topupgram</span> • Kalkulator Pajak (Tax) Robux
     </div>
   </div>
 
@@ -234,7 +234,7 @@
     let result;
     if (mode === "after") {
       result = value * 0.7;
-      resultBox.innerText = `Robux diterima: ${Math.floor(result)} R$`;
+      resultBox.innerText = `Robux yang akan diterima: ${Math.floor(result)} R$`;
     } else {
       result = value / 0.7;
       resultBox.innerText = `Robux yang dibutuhkan: ${Math.ceil(result)} R$`;
