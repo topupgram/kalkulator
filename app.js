@@ -1,9 +1,26 @@
-// app.js (ESM) - Firebase CDN v9 (modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  collection,
+  onSnapshot,
+  setDoc,
+  serverTimestamp,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 
 // =======================
-// FIREBASE CONFIG (punyamu: gpratetpg)
+// FIREBASE CONFIG (gpratetpg)
 // =======================
 const firebaseConfig = {
   apiKey: "AIzaSyBdForzpHb7Z0ZKcpbtQUYkhkSgrvNxqOk",
@@ -14,25 +31,29 @@ const firebaseConfig = {
   appId: "1:537787271478:web:2e1d8f734f9a4020c60b97"
 };
 
+const ADMIN_EMAIL = "dinijanuari23@gmail.com";
+const SELLER_GET = 0.7;
+
+const wantAdminPanel = new URLSearchParams(window.location.search).get("admin") === "1";
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
-// Firestore doc: settings/rates
-// Fields: { gigRate, paytaxRate, notaxRate, updatedAt }
-const RATES_DOC = ["settings", "rates"];
-
-// tax sesuai kalkulator
-const SELLER_GET = 0.7;
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
 // =======================
 // STATE
 // =======================
+let isAdmin = false;
+
 let gigRate = 95;
 let paytaxRate = 75;
 let notaxRate = 80;
 
-// admin mode hanya dari query param
-const wantAdminPanel = new URLSearchParams(window.location.search).get("admin") === "1";
+let mapsCache = [];        // [{id, name}]
+let itemsCache = [];       // current selected map items [{id, name, robux}]
+let selectedMapId = "";    // for public select
+let selectedItemId = "";
 
 // =======================
 // HELPERS
@@ -50,7 +71,6 @@ function toPosInt(v){
   const n = toInt(v);
   return n > 0 ? n : 0;
 }
-
 function showToast(message, type = "ok"){
   const toast = document.getElementById("toast");
   if(!toast) return;
@@ -60,6 +80,38 @@ function showToast(message, type = "ok"){
   toast.style.display = "block";
   clearTimeout(showToast._t);
   showToast._t = setTimeout(()=> toast.style.display = "none", 2400);
+}
+function slugify(s){
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80);
+}
+function setSelectOptions(selectEl, options, placeholder){
+  if(!selectEl) return;
+  selectEl.innerHTML = "";
+
+  if(placeholder){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = placeholder;
+    selectEl.appendChild(opt);
+  }
+
+  for(const o of options){
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = o.name;
+    selectEl.appendChild(opt);
+  }
+}
+function getActiveRate(){
+  const gpType = document.getElementById("gpType")?.value;
+  if(gpType === "paytax") return paytaxRate;
+  if(gpType === "notax") return notaxRate;
+  return gigRate;
 }
 
 // =======================
@@ -78,102 +130,166 @@ const gigFields = document.getElementById("gigFields");
 const targetNet = document.getElementById("targetNet");
 const robuxInput = document.getElementById("robuxInput");
 
-const gigMap = document.getElementById("gigMap");
-const gigItem = document.getElementById("gigItem");
+const gigMode = document.getElementById("gigMode");
+const gigListWrap = document.getElementById("gigListWrap");
+const gigManualWrap = document.getElementById("gigManualWrap");
+
+const gigMapSelect = document.getElementById("gigMapSelect");
+const gigItemSelect = document.getElementById("gigItemSelect");
+const gigRobuxReadonly = document.getElementById("gigRobuxReadonly");
+
 const gigRobuxPrice = document.getElementById("gigRobuxPrice");
 
 const robuxNeedEl = document.getElementById("robuxNeed");
 const netReceiveEl = document.getElementById("netReceive");
 const hargaEl = document.getElementById("harga");
 
-// admin
+// admin UI
 const adminBadge = document.getElementById("adminBadge");
 const adminPanel = document.getElementById("adminPanel");
+
+const btnAdminLogin = document.getElementById("btnAdminLogin");
+const btnAdminLogout = document.getElementById("btnAdminLogout");
+const adminStatus = document.getElementById("adminStatus");
+
 const adminGigRate = document.getElementById("adminGigRate");
 const adminPaytaxRate = document.getElementById("adminPaytaxRate");
 const adminNotaxRate = document.getElementById("adminNotaxRate");
 const btnSaveRates = document.getElementById("btnSaveRates");
 
+const adminNewMapName = document.getElementById("adminNewMapName");
+const btnAddMap = document.getElementById("btnAddMap");
+const adminMapSelect = document.getElementById("adminMapSelect");
+
+const adminNewItemName = document.getElementById("adminNewItemName");
+const adminNewItemRobux = document.getElementById("adminNewItemRobux");
+const btnUpsertItem = document.getElementById("btnUpsertItem");
+
 // =======================
-// LOGIC: RATE DISPLAY
+// ADMIN UI LOCK/UNLOCK
 // =======================
-function getActiveRate(){
-  const type = gpType?.value;
-  if(type === "paytax") return paytaxRate;
-  if(type === "notax") return notaxRate;
-  return gigRate;
+function applyAdminUI(user){
+  const email = (user?.email || "").toLowerCase();
+  isAdmin = !!(user && email === ADMIN_EMAIL.toLowerCase());
+
+  if(!wantAdminPanel) return;
+
+  btnAdminLogin && (btnAdminLogin.style.display = user ? "none" : "inline-block");
+  btnAdminLogout && (btnAdminLogout.style.display = user ? "inline-block" : "none");
+
+  if(adminStatus){
+    if(!user) adminStatus.textContent = "Belum login.";
+    else if(isAdmin) adminStatus.textContent = `Login: ${user.email} (ADMIN ✅)`;
+    else adminStatus.textContent = `Login: ${user.email} (BUKAN ADMIN ❌)`;
+  }
+
+  // hard-lock admin controls
+  const canEdit = !!isAdmin;
+
+  if(adminGigRate) adminGigRate.disabled = !canEdit;
+  if(adminPaytaxRate) adminPaytaxRate.disabled = !canEdit;
+  if(adminNotaxRate) adminNotaxRate.disabled = !canEdit;
+  if(btnSaveRates) btnSaveRates.disabled = !canEdit;
+
+  if(adminNewMapName) adminNewMapName.disabled = !canEdit;
+  if(btnAddMap) btnAddMap.disabled = !canEdit;
+  if(adminMapSelect) adminMapSelect.disabled = !canEdit;
+
+  if(adminNewItemName) adminNewItemName.disabled = !canEdit;
+  if(adminNewItemRobux) adminNewItemRobux.disabled = !canEdit;
+  if(btnUpsertItem) btnUpsertItem.disabled = !canEdit;
+
+  // kalau login bukan admin -> logout
+  if(user && !isAdmin){
+    signOut(auth).catch(()=>{});
+    showToast("Email ini bukan admin. Logout otomatis.", "error");
+  }
 }
 
+async function tryAutoAdminLogin(){
+  if(!wantAdminPanel) return;
+
+  adminPanel && adminPanel.classList.remove("hidden");
+  adminBadge && adminBadge.classList.remove("hidden");
+
+  try { await getRedirectResult(auth); } catch(e){}
+
+  if(!auth.currentUser){
+    // redirect to Google login
+    try { await signInWithRedirect(auth, provider); }
+    catch(e){
+      console.error(e);
+      showToast("Login gagal/dibatalkan.", "error");
+    }
+  }
+}
+
+// =======================
+// RATE UI + CALC
+// =======================
 function setRateUI(){
   const r = getActiveRate();
-  if(rateEl) rateEl.value = `${formatRupiah(r)} / Robux`;
-  if(rateHint) rateHint.textContent = `Rp${new Intl.NumberFormat('id-ID').format(r)} / Robux`;
+  rateEl && (rateEl.value = `${formatRupiah(r)} / Robux`);
+  rateHint && (rateHint.textContent = `Rp${new Intl.NumberFormat('id-ID').format(r)} / Robux`);
 }
 
-// =======================
-// LOGIC: CALC
-// =======================
 function clearOutputs(){
-  if(robuxNeedEl) robuxNeedEl.value = "";
-  if(netReceiveEl) netReceiveEl.value = "";
-  if(hargaEl) hargaEl.value = "";
-  if(hargaHint) hargaHint.textContent = "";
+  robuxNeedEl && (robuxNeedEl.value = "");
+  netReceiveEl && (netReceiveEl.value = "");
+  hargaEl && (hargaEl.value = "");
+  hargaHint && (hargaHint.textContent = "");
 }
 
 function calcPaytax(){
   const target = toPosInt(targetNet?.value);
-  if(!target){
-    clearOutputs();
-    return;
-  }
+  if(!target){ clearOutputs(); return; }
 
   const need = Math.ceil(target / SELLER_GET);
   const harga = need * paytaxRate;
 
-  if(robuxNeedEl) robuxNeedEl.value = `${need} R$`;
-  if(netReceiveEl) netReceiveEl.value = `${target} R$`;
-  if(hargaEl) hargaEl.value = formatRupiah(harga);
-
-  if(hargaHint) hargaHint.textContent = `Rumus: robuxNeed = ceil(target / 0.7), harga = paytaxRate × robuxNeed`;
+  robuxNeedEl && (robuxNeedEl.value = `${need} R$`);
+  netReceiveEl && (netReceiveEl.value = `${target} R$`);
+  hargaEl && (hargaEl.value = formatRupiah(harga));
+  hargaHint && (hargaHint.textContent = `Rumus: robuxNeed = ceil(target / 0.7), harga = paytaxRate × robuxNeed`);
 }
 
 function calcNotax(){
   const robux = toPosInt(robuxInput?.value);
-  if(!robux){
-    clearOutputs();
-    return;
-  }
+  if(!robux){ clearOutputs(); return; }
 
   const net = Math.floor(robux * SELLER_GET);
   const harga = robux * notaxRate;
 
-  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`;
-  if(netReceiveEl) netReceiveEl.value = `${net} R$`;
-  if(hargaEl) hargaEl.value = formatRupiah(harga);
+  robuxNeedEl && (robuxNeedEl.value = `${robux} R$`);
+  netReceiveEl && (netReceiveEl.value = `${net} R$`);
+  hargaEl && (hargaEl.value = formatRupiah(harga));
+  hargaHint && (hargaHint.textContent = `Rumus: net = floor(robux × 0.7), harga = notaxRate × robux`);
+}
 
-  if(hargaHint) hargaHint.textContent = `Rumus: net = floor(robux × 0.7), harga = notaxRate × robux`;
+function getGigRobux(){
+  const mode = gigMode?.value || "list";
+  if(mode === "manual") return toPosInt(gigRobuxPrice?.value);
+
+  // list mode: ambil dari item terpilih
+  const item = itemsCache.find(x => x.id === selectedItemId);
+  return item ? toPosInt(item.robux) : 0;
 }
 
 function calcGig(){
-  const robux = toPosInt(gigRobuxPrice?.value);
-  if(!robux){
-    clearOutputs();
-    return;
-  }
+  const robux = getGigRobux();
+  if(!robux){ clearOutputs(); return; }
 
   const harga = robux * gigRate;
 
-  // untuk GIG, field robuxNeed/netReceive ga wajib, tapi biar informatif:
-  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`;
-  if(netReceiveEl) netReceiveEl.value = "";
-  if(hargaEl) hargaEl.value = formatRupiah(harga);
-
-  if(hargaHint) hargaHint.textContent = `Rumus: harga = gigRate × robuxItem`;
+  robuxNeedEl && (robuxNeedEl.value = `${robux} R$`);
+  netReceiveEl && (netReceiveEl.value = "");
+  hargaEl && (hargaEl.value = formatRupiah(harga));
+  hargaHint && (hargaHint.textContent = `Rumus: harga = gigRate × robux`);
 }
 
 function recalc(){
-  const type = gpType?.value;
   setRateUI();
+  const type = gpType?.value;
 
   if(type === "paytax") return calcPaytax();
   if(type === "notax") return calcNotax();
@@ -190,79 +306,150 @@ function applyTypeUI(){
   notaxFields?.classList.add("hidden");
   gigFields?.classList.add("hidden");
 
-  // reset required
-  if(targetNet) targetNet.required = false;
-  if(robuxInput) robuxInput.required = false;
-  if(gigMap) gigMap.required = false;
-  if(gigItem) gigItem.required = false;
-  if(gigRobuxPrice) gigRobuxPrice.required = false;
-
-  // reset values biar bersih pas ganti tipe
+  // reset values
   if(targetNet) targetNet.value = "";
   if(robuxInput) robuxInput.value = "";
-  if(gigMap) gigMap.value = "";
-  if(gigItem) gigItem.value = "";
   if(gigRobuxPrice) gigRobuxPrice.value = "";
+  gigRobuxReadonly && (gigRobuxReadonly.value = "");
   clearOutputs();
 
   if(type === "paytax"){
     paytaxFields?.classList.remove("hidden");
-    if(targetNet) targetNet.required = true;
   } else if(type === "notax"){
     notaxFields?.classList.remove("hidden");
-    if(robuxInput) robuxInput.required = true;
   } else {
     gigFields?.classList.remove("hidden");
-    if(gigMap) gigMap.required = true;
-    if(gigItem) gigItem.required = true;
-    if(gigRobuxPrice) gigRobuxPrice.required = true;
+    applyGigModeUI(); // ensure correct mode
   }
 
   setRateUI();
 }
 
+function applyGigModeUI(){
+  const mode = gigMode?.value || "list";
+  if(mode === "manual"){
+    gigListWrap?.classList.add("hidden");
+    gigManualWrap?.classList.remove("hidden");
+  } else {
+    gigManualWrap?.classList.add("hidden");
+    gigListWrap?.classList.remove("hidden");
+  }
+  clearOutputs();
+  recalc();
+}
+
 // =======================
-// FIRESTORE: realtime rates
+// FIRESTORE LISTENERS
 // =======================
 function bindRates(){
-  const ref = doc(db, RATES_DOC[0], RATES_DOC[1]);
-
+  const ref = doc(db, "settings", "rates");
   onSnapshot(ref, (snap) => {
-    if (snap.exists()) {
+    if(snap.exists()){
       const d = snap.data() || {};
       const g = Number(d.gigRate);
       const p = Number(d.paytaxRate);
       const n = Number(d.notaxRate);
-
-      // fallback kalau invalid
-      gigRate = (Number.isFinite(g) && g > 0) ? Math.round(g) : gigRate;
-      paytaxRate = (Number.isFinite(p) && p > 0) ? Math.round(p) : paytaxRate;
-      notaxRate = (Number.isFinite(n) && n > 0) ? Math.round(n) : notaxRate;
+      if(Number.isFinite(g) && g > 0) gigRate = Math.round(g);
+      if(Number.isFinite(p) && p > 0) paytaxRate = Math.round(p);
+      if(Number.isFinite(n) && n > 0) notaxRate = Math.round(n);
     }
 
-    // set admin inputs
+    // admin inputs
     if(adminGigRate) adminGigRate.value = gigRate;
     if(adminPaytaxRate) adminPaytaxRate.value = paytaxRate;
     if(adminNotaxRate) adminNotaxRate.value = notaxRate;
 
     recalc();
-  }, (err) => {
-    console.error(err);
-    showToast("Gagal mengambil rate dari Firebase (pakai default).", "error");
-    // tetap bisa kalkulasi pakai default
-    if(adminGigRate) adminGigRate.value = gigRate;
-    if(adminPaytaxRate) adminPaytaxRate.value = paytaxRate;
-    if(adminNotaxRate) adminNotaxRate.value = notaxRate;
+  }, (e) => {
+    console.error(e);
+    showToast("Gagal load rate (pakai default).", "error");
     recalc();
   });
 }
 
+function bindMaps(){
+  const mapsRef = collection(db, "maps");
+  const qMaps = query(mapsRef, orderBy("name", "asc"));
+
+  onSnapshot(qMaps, (snap) => {
+    mapsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .map(x => ({ id: x.id, name: x.name || x.id }));
+
+    // public map select
+    setSelectOptions(gigMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
+    // admin map select
+    setSelectOptions(adminMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
+
+    // auto select first map (public)
+    if(!selectedMapId && mapsCache.length){
+      selectedMapId = mapsCache[0].id;
+      if(gigMapSelect) gigMapSelect.value = selectedMapId;
+    }
+
+    // auto select for admin too
+    if(wantAdminPanel && mapsCache.length && adminMapSelect && !adminMapSelect.value){
+      adminMapSelect.value = mapsCache[0].id;
+    }
+
+    // bind items for currently selected map
+    const mapId = gigMapSelect?.value || selectedMapId || (mapsCache[0]?.id || "");
+    if(mapId) {
+      selectedMapId = mapId;
+      bindItemsForMap(mapId);
+    } else {
+      itemsCache = [];
+      setSelectOptions(gigItemSelect, [], "Belum ada item");
+      gigRobuxReadonly && (gigRobuxReadonly.value = "");
+      clearOutputs();
+    }
+  }, (e) => {
+    console.error(e);
+    showToast("Gagal load maps.", "error");
+  });
+}
+
+let unsubscribeItems = null;
+function bindItemsForMap(mapId){
+  if(unsubscribeItems) unsubscribeItems();
+
+  const itemsRef = collection(db, "maps", mapId, "items");
+  const qItems = query(itemsRef, orderBy("name", "asc"));
+
+  unsubscribeItems = onSnapshot(qItems, (snap) => {
+    itemsCache = snap.docs.map(d => {
+      const data = d.data() || {};
+      return { id: d.id, name: data.name || d.id, robux: Number(data.robux || 0) };
+    });
+
+    setSelectOptions(gigItemSelect, itemsCache, itemsCache.length ? "Pilih item..." : "Belum ada item");
+
+    // auto select first item
+    if(itemsCache.length){
+      selectedItemId = itemsCache[0].id;
+      if(gigItemSelect) gigItemSelect.value = selectedItemId;
+
+      const it = itemsCache[0];
+      gigRobuxReadonly && (gigRobuxReadonly.value = `${it.robux} R$`);
+    } else {
+      selectedItemId = "";
+      gigRobuxReadonly && (gigRobuxReadonly.value = "");
+    }
+
+    recalc();
+  }, (e) => {
+    console.error(e);
+    showToast("Gagal load items.", "error");
+  });
+}
+
+// =======================
+// ADMIN ACTIONS
+// =======================
 async function saveRates(){
-  if(!wantAdminPanel){
-    showToast("Akses admin tidak aktif.", "error");
+  if(!wantAdminPanel || !isAdmin){
+    showToast("Akses ditolak. Login admin dulu.", "error");
     return;
   }
-
   const g = toPosInt(adminGigRate?.value);
   const p = toPosInt(adminPaytaxRate?.value);
   const n = toPosInt(adminNotaxRate?.value);
@@ -272,53 +459,149 @@ async function saveRates(){
     return;
   }
 
-  const ref = doc(db, RATES_DOC[0], RATES_DOC[1]);
   try{
-    await setDoc(ref, {
+    await setDoc(doc(db, "settings", "rates"), {
       gigRate: g,
       paytaxRate: p,
       notaxRate: n,
       updatedAt: serverTimestamp()
     }, { merge: true });
-
     showToast("Rate berhasil disimpan ✅");
-  } catch(e){
+  }catch(e){
     console.error(e);
-    showToast("Gagal menyimpan rate ke Firebase.", "error");
+    showToast("Gagal simpan rate.", "error");
   }
+}
+
+async function addMap(){
+  if(!isAdmin) return showToast("Login admin dulu.", "error");
+
+  const name = String(adminNewMapName?.value || "").trim();
+  if(!name) return showToast("Nama maps tidak boleh kosong.", "error");
+
+  const mapId = slugify(name);
+  if(!mapId) return showToast("Nama maps tidak valid.", "error");
+
+  try{
+    await setDoc(doc(db, "maps", mapId), {
+      name,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+
+    adminNewMapName.value = "";
+    showToast("Maps tersimpan ✅");
+  }catch(e){
+    console.error(e);
+    showToast("Gagal tambah maps.", "error");
+  }
+}
+
+async function upsertItem(){
+  if(!isAdmin) return showToast("Login admin dulu.", "error");
+
+  const mapId = adminMapSelect?.value;
+  if(!mapId) return showToast("Pilih maps dulu.", "error");
+
+  const itemName = String(adminNewItemName?.value || "").trim();
+  const robux = toPosInt(adminNewItemRobux?.value);
+
+  if(!itemName) return showToast("Nama item tidak boleh kosong.", "error");
+  if(!robux) return showToast("Robux item harus > 0.", "error");
+
+  const itemId = slugify(itemName);
+  if(!itemId) return showToast("Nama item tidak valid.", "error");
+
+  try{
+    await setDoc(doc(db, "maps", mapId, "items", itemId), {
+      name: itemName,
+      robux,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+
+    adminNewItemName.value = "";
+    adminNewItemRobux.value = "";
+    showToast("Item tersimpan ✅");
+  }catch(e){
+    console.error(e);
+    showToast("Gagal simpan item.", "error");
+  }
+}
+
+// =======================
+// EVENTS
+// =======================
+function handleGigMapChange(){
+  const mapId = gigMapSelect?.value || "";
+  if(!mapId){
+    itemsCache = [];
+    setSelectOptions(gigItemSelect, [], "Belum ada item");
+    gigRobuxReadonly && (gigRobuxReadonly.value = "");
+    clearOutputs();
+    return;
+  }
+  selectedMapId = mapId;
+  bindItemsForMap(mapId);
+}
+
+function handleGigItemChange(){
+  selectedItemId = gigItemSelect?.value || "";
+  const item = itemsCache.find(x => x.id === selectedItemId);
+  if(item){
+    gigRobuxReadonly && (gigRobuxReadonly.value = `${item.robux} R$`);
+  } else {
+    gigRobuxReadonly && (gigRobuxReadonly.value = "");
+  }
+  recalc();
 }
 
 // =======================
 // INIT
 // =======================
-document.addEventListener("DOMContentLoaded", () => {
-  // admin UI
+document.addEventListener("DOMContentLoaded", async () => {
+  // show admin panel only if admin=1
   if(adminPanel) adminPanel.classList.toggle("hidden", !wantAdminPanel);
   if(adminBadge) adminBadge.classList.toggle("hidden", !wantAdminPanel);
 
-  // default show: gig
   applyTypeUI();
   bindRates();
+  bindMaps();
 
-  gpType?.addEventListener("change", () => {
-    applyTypeUI();
-    recalc();
+  // auth listeners
+  onAuthStateChanged(auth, (user) => applyAdminUI(user));
+
+  btnAdminLogin?.addEventListener("click", async () => {
+    try { await signInWithRedirect(auth, provider); }
+    catch(e){ showToast("Login gagal/dibatalkan.", "error"); }
   });
 
-  targetNet?.addEventListener("input", () => {
-    if(gpType?.value === "paytax") calcPaytax();
+  btnAdminLogout?.addEventListener("click", async () => {
+    try { await signOut(auth); showToast("Logout berhasil."); } catch(e){}
   });
 
-  robuxInput?.addEventListener("input", () => {
-    if(gpType?.value === "notax") calcNotax();
-  });
+  // auto redirect login when admin=1
+  await tryAutoAdminLogin();
 
-  gigRobuxPrice?.addEventListener("input", () => {
-    if(gpType?.value === "gig") calcGig();
-  });
+  // calculator events
+  gpType?.addEventListener("change", () => { applyTypeUI(); recalc(); });
 
-  // optional: kalau mau auto-calc walaupun map/item kosong, tetap jalan (sesuai request: pure perhitungan)
-  // map/item hanya informasi, bukan pengaruh harga.
+  targetNet?.addEventListener("input", () => { if(gpType?.value === "paytax") calcPaytax(); });
+  robuxInput?.addEventListener("input", () => { if(gpType?.value === "notax") calcNotax(); });
 
+  gigMode?.addEventListener("change", applyGigModeUI);
+  gigRobuxPrice?.addEventListener("input", () => { if(gpType?.value === "gig") calcGig(); });
+
+  gigMapSelect?.addEventListener("change", handleGigMapChange);
+  gigItemSelect?.addEventListener("change", handleGigItemChange);
+
+  // admin actions
   btnSaveRates?.addEventListener("click", saveRates);
+  btnAddMap?.addEventListener("click", addMap);
+  btnUpsertItem?.addEventListener("click", upsertItem);
+
+  // admin map select (for item creation)
+  adminMapSelect?.addEventListener("change", () => {
+    // optional: no-op, we just use current value in upsertItem()
+  });
 });
