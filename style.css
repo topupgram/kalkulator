@@ -64,6 +64,7 @@ input[readonly], input:disabled {
   margin: 10px 0 14px;
 }
 
+/* default 2 kolom, tapi responsive */
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -153,7 +154,9 @@ input[readonly], input:disabled {
 }
 
 .admin-auth { margin-bottom: 10px; }
-.admin-auth-row { display:flex; gap:10px; }
+
+/* biar di hp nggak kepotong */
+.admin-auth-row { display:flex; gap:10px; flex-wrap: wrap; }
 
 .divider {
   height: 1px;
@@ -163,6 +166,7 @@ input[readonly], input:disabled {
 
 .hidden { display: none !important; }
 
+/* pilihan robux 3 tombol */
 .type-grid{
   display:grid;
   grid-template-columns: repeat(3, 1fr);
@@ -193,6 +197,7 @@ input[readonly], input:disabled {
   border-color: transparent;
 }
 
+/* item buttons: 3 kolom, responsive */
 .item-grid{
   display:grid;
   grid-template-columns: repeat(3, 1fr);
@@ -212,6 +217,7 @@ input[readonly], input:disabled {
   transition:0.18s;
   text-align:left;
   line-height:1.2;
+  min-height: 54px;
 }
 
 .item-btn small{
@@ -229,4 +235,16 @@ input[readonly], input:disabled {
 .item-btn.active{
   background: rgba(127,170,220,0.18);
   border-color: rgba(127,170,220,0.75);
+}
+
+/* RESPONSIVE: layar sempit */
+@media (max-width: 420px){
+  .card { padding: 18px; }
+  .row { grid-template-columns: 1fr; }
+  .type-grid { grid-template-columns: 1fr; }
+  .item-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 340px){
+  .item-grid { grid-template-columns: 1fr; }
 }
