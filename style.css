@@ -69,7 +69,7 @@ input[readonly], input:disabled {
 /* 2 kolom di desktop, 1 kolom di hp */
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 3fr 3fr;
   gap: 10px;
 }
 
