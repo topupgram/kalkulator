@@ -162,3 +162,71 @@ input[readonly], input:disabled {
 }
 
 .hidden { display: none !important; }
+
+.type-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:10px;
+}
+
+.type-btn{
+  width:100%;
+  padding:12px 10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:#fff;
+  color:var(--text);
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  transition:0.18s;
+}
+
+.type-btn:hover{
+  border-color: rgba(127,170,220,0.7);
+  background: rgba(127,170,220,0.08);
+}
+
+.type-btn.active{
+  background: var(--primary);
+  color:#fff;
+  border-color: transparent;
+}
+
+.item-grid{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:10px;
+}
+
+.item-btn{
+  width:100%;
+  padding:12px 10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:#fff;
+  color:var(--text);
+  font-weight:600;
+  font-size:13px;
+  cursor:pointer;
+  transition:0.18s;
+  text-align:left;
+  line-height:1.2;
+}
+
+.item-btn small{
+  display:block;
+  margin-top:6px;
+  font-weight:600;
+  color: var(--muted);
+}
+
+.item-btn:hover{
+  border-color: rgba(127,170,220,0.7);
+  background: rgba(127,170,220,0.08);
+}
+
+.item-btn.active{
+  background: rgba(127,170,220,0.18);
+  border-color: rgba(127,170,220,0.75);
+}
