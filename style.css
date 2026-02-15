@@ -242,5 +242,8 @@ input[readonly], input:disabled {
 @media (max-width: 420px){
   .card { padding: 18px; }
   .row { grid-template-columns: 1fr; }
-  .type-grid { grid-template-columns: 1fr; }
+
+  /* PAKSA 3 kolom untuk pilihan robux */
+  .type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .type-btn { font-size: 12px; padding: 10px 6px; border-radius: 12px; }
 }
