@@ -36,30 +36,79 @@
 
       <!-- ADMIN PANEL (only ?admin=1) -->
       <div id="adminPanel" class="admin-panel hidden">
-        <div class="admin-title">Admin: Ubah Rate</div>
+        <div class="admin-title">Admin Panel</div>
 
+        <div class="admin-auth">
+          <div class="admin-auth-row">
+            <button class="btn" id="btnAdminLogin" type="button">Login Google</button>
+            <button class="btn" id="btnAdminLogout" type="button" style="display:none;">Logout</button>
+          </div>
+          <div class="hint" id="adminStatus">Belum login.</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="admin-subtitle">Ubah Rate</div>
         <div class="row">
           <div class="input-group">
             <label for="adminGigRate">Rate GIG (Rp/Robux)</label>
-            <input id="adminGigRate" type="number" min="0" step="1" placeholder="Contoh: 95" />
+            <input id="adminGigRate" type="number" min="0" step="1" disabled />
           </div>
           <div class="input-group">
             <label for="adminPaytaxRate">Rate Paytax (Rp/Robux)</label>
-            <input id="adminPaytaxRate" type="number" min="0" step="1" placeholder="Contoh: 75" />
+            <input id="adminPaytaxRate" type="number" min="0" step="1" disabled />
           </div>
+        </div>
+        <div class="row">
+          <div class="input-group">
+            <label for="adminNotaxRate">Rate Notax (Rp/Robux)</label>
+            <input id="adminNotaxRate" type="number" min="0" step="1" disabled />
+          </div>
+          <div class="input-group" style="display:flex; align-items:end;">
+            <button class="btn" id="btnSaveRates" type="button" disabled>Simpan Rate</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="admin-subtitle">Kelola Maps & Item (GIG)</div>
+
+        <div class="row">
+          <div class="input-group">
+            <label for="adminNewMapName">Tambah Maps</label>
+            <input id="adminNewMapName" type="text" placeholder="Contoh: Faceit" disabled />
+          </div>
+          <div class="input-group" style="display:flex; align-items:end;">
+            <button class="btn" id="btnAddMap" type="button" disabled>Tambah Maps</button>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="adminMapSelect">Pilih Maps untuk kelola item</label>
+          <select id="adminMapSelect" disabled></select>
         </div>
 
         <div class="row">
           <div class="input-group">
-            <label for="adminNotaxRate">Rate Notax (Rp/Robux)</label>
-            <input id="adminNotaxRate" type="number" min="0" step="1" placeholder="Contoh: 80" />
+            <label for="adminNewItemName">Nama Item</label>
+            <input id="adminNewItemName" type="text" placeholder="Contoh: VIP 1 minggu" disabled />
           </div>
-          <div class="input-group" style="display:flex; align-items:end;">
-            <button class="btn" id="btnSaveRates" type="button">Simpan Rate</button>
+          <div class="input-group">
+            <label for="adminNewItemRobux">Robux Item</label>
+            <input id="adminNewItemRobux" type="number" min="0" step="1" placeholder="Contoh: 99" disabled />
           </div>
         </div>
 
-        <div class="hint">Disimpan ke Firestore: <b>settings/rates</b></div>
+        <div class="row">
+          <div class="input-group" style="display:flex; align-items:end;">
+            <button class="btn" id="btnUpsertItem" type="button" disabled>Simpan / Update Item</button>
+          </div>
+          <div class="input-group">
+            <div class="hint">Tip: item disimpan pakai slug dari nama item (kalau sama, akan overwrite).</div>
+          </div>
+        </div>
+
+        <div class="hint">Data disimpan di Firestore: <b>maps/{mapId}/items/{itemId}</b></div>
       </div>
 
       <div class="dashed-panel">
@@ -82,31 +131,50 @@
         <!-- GIG -->
         <div id="gigFields" class="hidden">
           <div class="input-group">
-            <label for="gigMap">Maps apa *</label>
-            <input id="gigMap" type="text" placeholder="Contoh: fish it" />
+            <label for="gigMode">Input GIG</label>
+            <select id="gigMode">
+              <option value="list">Pilih dari list (Maps → Item)</option>
+              <option value="manual">Manual (isi robux saja)</option>
+            </select>
           </div>
 
-          <div class="input-group">
-            <label for="gigItem">Item yang mau di gift *</label>
-            <input id="gigItem" type="text" placeholder="Contoh: create skin elderwood" />
+          <div id="gigListWrap">
+            <div class="input-group">
+              <label for="gigMapSelect">Maps</label>
+              <select id="gigMapSelect"></select>
+            </div>
+
+            <div class="input-group">
+              <label for="gigItemSelect">Item</label>
+              <select id="gigItemSelect"></select>
+            </div>
+
+            <div class="input-group">
+              <label for="gigRobuxReadonly">Robux Item</label>
+              <input id="gigRobuxReadonly" type="text" readonly placeholder="Pilih item dulu" />
+            </div>
           </div>
 
-          <div class="input-group">
-            <label for="gigRobuxPrice">Harga item (Jumlah robux) *</label>
-            <input id="gigRobuxPrice" type="number" min="0" step="1" placeholder="Contoh: 99" />
+          <div id="gigManualWrap" class="hidden">
+            <div class="input-group">
+              <label for="gigRobuxPrice">Jumlah Robux *</label>
+              <input id="gigRobuxPrice" type="number" min="0" step="1" placeholder="Contoh: 99" />
+            </div>
           </div>
+
+          <div class="hint">Harga otomatis: <b>gigRate × robux</b></div>
         </div>
       </div>
 
       <!-- OUTPUT -->
       <div class="input-group">
         <label for="robuxNeed">Robux yang dibutuhkan</label>
-        <input id="robuxNeed" type="text" readonly placeholder="Otomatis terisi (Paytax)" />
+        <input id="robuxNeed" type="text" readonly placeholder="Otomatis terisi (Paytax / Notax / GIG)" />
       </div>
 
       <div class="input-group">
         <label for="netReceive">Perkiraan robux bersih diterima</label>
-        <input id="netReceive" type="text" readonly placeholder="Otomatis terisi (Notax)" />
+        <input id="netReceive" type="text" readonly placeholder="Otomatis terisi (Notax / Paytax target)" />
       </div>
 
       <div class="input-group">
