@@ -125,7 +125,6 @@ const typeButtons = Array.from(document.querySelectorAll(".type-btn"));
 
 const rateEl = document.getElementById("rate");
 const rateHint = document.getElementById("rateHint");
-const hargaHint = document.getElementById("hargaHint");
 
 const fieldsWrap = document.getElementById("fieldsWrap");
 const extraOutputWrap = document.getElementById("extraOutputWrap");
@@ -147,6 +146,9 @@ const gigRobuxReadonly = document.getElementById("gigRobuxReadonly");
 const robuxNeedEl = document.getElementById("robuxNeed");
 const netReceiveEl = document.getElementById("netReceive");
 const hargaEl = document.getElementById("harga");
+
+const robuxNeedGroup = robuxNeedEl?.closest(".input-group");
+const netReceiveGroup = netReceiveEl?.closest(".input-group");
 
 // admin
 const adminBadge = document.getElementById("adminBadge");
@@ -228,7 +230,6 @@ function clearOutputs(){
   if(robuxNeedEl) robuxNeedEl.value = "";
   if(netReceiveEl) netReceiveEl.value = "";
   if(hargaEl) hargaEl.value = "";
-  if(hargaHint) hargaHint.textContent = "";
 }
 
 // =======================
@@ -242,7 +243,7 @@ function calcPaytax(){
   const harga = need * paytaxRate;
 
   if(robuxNeedEl) robuxNeedEl.value = `${need} R$`;
-  if(netReceiveEl) netReceiveEl.value = `${target} R$`;
+  if(netReceiveEl) netReceiveEl.value = `${target} R$`; // disembunyikan di UI paytax
   if(hargaEl) hargaEl.value = formatRupiah(harga);
 }
 
@@ -253,7 +254,7 @@ function calcNotax(){
   const net = Math.floor(robux * SELLER_GET);
   const harga = robux * notaxRate;
 
-  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`;
+  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`; // disembunyikan di UI notax
   if(netReceiveEl) netReceiveEl.value = `${net} R$`;
   if(hargaEl) hargaEl.value = formatRupiah(harga);
 }
@@ -269,8 +270,8 @@ function calcGig(){
 
   const harga = robux * gigRate;
 
-  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`;
-  if(netReceiveEl) netReceiveEl.value = "";
+  if(robuxNeedEl) robuxNeedEl.value = `${robux} R$`; // disembunyikan di UI gig
+  if(netReceiveEl) netReceiveEl.value = "";          // disembunyikan di UI gig
   if(hargaEl) hargaEl.value = formatRupiah(harga);
 }
 
@@ -279,13 +280,40 @@ function recalc(){
   if(currentType === "paytax") return calcPaytax();
   if(currentType === "notax") return calcNotax();
   if(currentType === "gig") return calcGig();
-  // belum pilih tipe
   clearOutputs();
 }
 
 // =======================
-// UI: TYPE BUTTONS
+// UI: TYPE BUTTONS + VISIBILITY RULES
 // =======================
+function applyOutputVisibilityByType(type){
+  // Wrapper output muncul setelah pilih tipe,
+  // tapi field di dalamnya sesuai rules:
+  // gig: none, paytax: only robuxNeed, notax: only netReceive
+  if(!extraOutputWrap) return;
+
+  if(type === "gig"){
+    extraOutputWrap.classList.add("hidden");
+    robuxNeedGroup?.classList.add("hidden");
+    netReceiveGroup?.classList.add("hidden");
+    return;
+  }
+
+  extraOutputWrap.classList.remove("hidden");
+
+  if(type === "paytax"){
+    robuxNeedGroup?.classList.remove("hidden");
+    netReceiveGroup?.classList.add("hidden");
+    return;
+  }
+
+  if(type === "notax"){
+    robuxNeedGroup?.classList.add("hidden");
+    netReceiveGroup?.classList.remove("hidden");
+    return;
+  }
+}
+
 function setActiveType(type){
   currentType = type;
 
@@ -294,22 +322,20 @@ function setActiveType(type){
     b.classList.toggle("active", b.dataset.type === type);
   }
 
-  // show needed sections
+  // show fields wrapper
   fieldsWrap?.classList.remove("hidden");
 
+  // show only needed fields
   paytaxFields?.classList.add("hidden");
   notaxFields?.classList.add("hidden");
   gigFields?.classList.add("hidden");
-
-  // default: extra output tampil hanya setelah pilih tipe
-  extraOutputWrap?.classList.remove("hidden");
 
   // clear inputs
   if(targetNet) targetNet.value = "";
   if(robuxInput) robuxInput.value = "";
   if(gigRobuxReadonly) gigRobuxReadonly.value = "";
-  selectedItemId = "";
 
+  selectedItemId = "";
   clearOutputs();
   setRateUI();
 
@@ -321,19 +347,21 @@ function setActiveType(type){
     gigFields?.classList.remove("hidden");
   }
 
-  // hitung ulang jika ada data existing
+  // output visibility per tipe
+  applyOutputVisibilityByType(type);
+
   recalc();
 }
 
 function setInitialUI(){
-  // belum pilih tipe => hide all fields
+  // belum pilih tipe => sembunyikan semua field kebutuhan
   currentType = null;
   for(const b of typeButtons) b.classList.remove("active");
 
   fieldsWrap?.classList.add("hidden");
   extraOutputWrap?.classList.add("hidden");
 
-  // tetap tampil Rate + Harga
+  // tetap tampil Rate + Harga (harga kosong)
   setRateUI();
   clearOutputs();
 }
@@ -362,7 +390,6 @@ function renderGigItemButtons(){
     btn.addEventListener("click", () => {
       selectedItemId = it.id;
 
-      // active state
       const all = gigItemButtons.querySelectorAll(".item-btn");
       all.forEach(x => x.classList.toggle("active", x.dataset.itemId === it.id));
 
@@ -415,7 +442,6 @@ function bindMaps(){
     setSelectOptions(gigMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
     setSelectOptions(adminMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
 
-    // auto select first map (for gig usage)
     if(mapsCache.length){
       if(!selectedMapId) selectedMapId = mapsCache[0].id;
       if(gigMapSelect && !gigMapSelect.value) gigMapSelect.value = selectedMapId;
@@ -425,8 +451,9 @@ function bindMaps(){
     } else {
       selectedMapId = "";
       itemsCache = [];
-      renderGigItemButtons();
+      selectedItemId = "";
       if(gigRobuxReadonly) gigRobuxReadonly.value = "";
+      renderGigItemButtons();
     }
   });
 }
@@ -443,7 +470,6 @@ function bindItemsForMap(mapId){
       return { id: d.id, name: data.name || d.id, robux: Number(data.robux || 0) };
     });
 
-    // reset selection if item gone
     if(itemsCache.length){
       selectedItemId = itemsCache[0].id;
       if(gigRobuxReadonly) gigRobuxReadonly.value = `${toPosInt(itemsCache[0].robux)} R$`;
@@ -454,7 +480,6 @@ function bindItemsForMap(mapId){
 
     renderGigItemButtons();
 
-    // set active first button UI if exist
     if(gigItemButtons && selectedItemId){
       const all = gigItemButtons.querySelectorAll(".item-btn");
       all.forEach(x => x.classList.toggle("active", x.dataset.itemId === selectedItemId));
@@ -555,11 +580,9 @@ async function upsertItem(){
 // INIT
 // =======================
 document.addEventListener("DOMContentLoaded", () => {
-  // admin panel only if admin=1
   showAdminPanelIfNeeded();
   if(wantAdminPanel) setAdminControlsEnabled(false);
 
-  // auth
   onAuthStateChanged(auth, (user) => applyAdminUI(user));
 
   btnAdminLogin?.addEventListener("click", async () => {
@@ -585,17 +608,14 @@ document.addEventListener("DOMContentLoaded", () => {
   btnAddMap?.addEventListener("click", addMap);
   btnUpsertItem?.addEventListener("click", upsertItem);
 
-  // initial UI state: belum pilih tipe
   setInitialUI();
 
-  // type button click
   typeGrid?.addEventListener("click", (e) => {
     const btn = e.target.closest(".type-btn");
     if(!btn) return;
     setActiveType(btn.dataset.type);
   });
 
-  // inputs calc
   targetNet?.addEventListener("input", () => {
     if(currentType === "paytax") calcPaytax();
   });
@@ -604,7 +624,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if(currentType === "notax") calcNotax();
   });
 
-  // gig map change
   gigMapSelect?.addEventListener("change", () => {
     const mapId = gigMapSelect.value || "";
     selectedMapId = mapId;
@@ -618,7 +637,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if(gigItemHint) gigItemHint.textContent = mapId ? "Loading item..." : "Pilih maps dulu.";
   });
 
-  // firestore
   bindRates();
   bindMaps();
 });
