@@ -19,13 +19,14 @@
         <div id="adminBadge" class="admin-badge hidden">Admin mode aktif</div>
       </div>
 
+      <!-- PILIHAN ROBUX (BUTTON GRID 3) -->
       <div class="input-group">
-        <label for="gpType">Pilihan Robux Gamepass *</label>
-        <select id="gpType">
-          <option value="gig">Gift in Game</option>
-          <option value="paytax">Robux Gamepass (Paytax)</option>
-          <option value="notax">Robux Gamepass (Notax)</option>
-        </select>
+        <label>Pilihan Robux Gamepass *</label>
+        <div class="type-grid" id="typeGrid">
+          <button type="button" class="type-btn" data-type="gig">Gift in Game</button>
+          <button type="button" class="type-btn" data-type="paytax">Robux Paytax</button>
+          <button type="button" class="type-btn" data-type="notax">Robux Notax</button>
+        </div>
       </div>
 
       <div class="input-group">
@@ -59,6 +60,7 @@
             <input id="adminPaytaxRate" type="number" min="0" step="1" disabled />
           </div>
         </div>
+
         <div class="row">
           <div class="input-group">
             <label for="adminNotaxRate">Rate Notax (Rp/Robux)</label>
@@ -104,14 +106,14 @@
             <button class="btn" id="btnUpsertItem" type="button" disabled>Simpan / Update Item</button>
           </div>
           <div class="input-group">
-            <div class="hint">Tip: item disimpan pakai slug dari nama item (kalau sama, akan overwrite).</div>
+            <div class="hint">Tip: item disimpan pakai slug dari nama item (kalau sama, overwrite).</div>
           </div>
         </div>
-
-        <div class="hint">Data disimpan di Firestore: <b>maps/{mapId}/items/{itemId}</b></div>
       </div>
 
-      <div class="dashed-panel">
+      <!-- KOTAK FIELD (DISEMBUNYIKAN SAAT BELUM PILIH TIPE) -->
+      <div class="dashed-panel hidden" id="fieldsWrap">
+
         <!-- PAYTAX -->
         <div id="paytaxFields" class="hidden">
           <div class="input-group">
@@ -131,50 +133,36 @@
         <!-- GIG -->
         <div id="gigFields" class="hidden">
           <div class="input-group">
-            <label for="gigMode">Input GIG</label>
-            <select id="gigMode">
-              <option value="list">Pilih dari list (Maps → Item)</option>
-              <option value="manual">Manual (isi robux saja)</option>
-            </select>
+            <label for="gigMapSelect">Maps</label>
+            <select id="gigMapSelect"></select>
           </div>
 
-          <div id="gigListWrap">
-            <div class="input-group">
-              <label for="gigMapSelect">Maps</label>
-              <select id="gigMapSelect"></select>
-            </div>
-
-            <div class="input-group">
-              <label for="gigItemSelect">Item</label>
-              <select id="gigItemSelect"></select>
-            </div>
-
-            <div class="input-group">
-              <label for="gigRobuxReadonly">Robux Item</label>
-              <input id="gigRobuxReadonly" type="text" readonly placeholder="Pilih item dulu" />
-            </div>
+          <div class="input-group">
+            <label>Item</label>
+            <div id="gigItemButtons" class="item-grid"></div>
+            <div class="hint" id="gigItemHint">Pilih maps dulu.</div>
           </div>
 
-          <div id="gigManualWrap" class="hidden">
-            <div class="input-group">
-              <label for="gigRobuxPrice">Jumlah Robux *</label>
-              <input id="gigRobuxPrice" type="number" min="0" step="1" placeholder="Contoh: 99" />
-            </div>
+          <div class="input-group">
+            <label for="gigRobuxReadonly">Robux Item</label>
+            <input id="gigRobuxReadonly" type="text" readonly placeholder="Pilih item dulu" />
           </div>
 
           <div class="hint">Harga otomatis: <b>gigRate × robux</b></div>
         </div>
       </div>
 
-      <!-- OUTPUT -->
-      <div class="input-group">
-        <label for="robuxNeed">Robux yang dibutuhkan</label>
-        <input id="robuxNeed" type="text" readonly placeholder="Otomatis terisi (Paytax / Notax / GIG)" />
-      </div>
+      <!-- OUTPUT: DEFAULT cuma Harga. Extra output muncul setelah pilih tipe -->
+      <div class="hidden" id="extraOutputWrap">
+        <div class="input-group">
+          <label for="robuxNeed">Robux yang dibutuhkan</label>
+          <input id="robuxNeed" type="text" readonly placeholder="Otomatis terisi" />
+        </div>
 
-      <div class="input-group">
-        <label for="netReceive">Perkiraan robux bersih diterima</label>
-        <input id="netReceive" type="text" readonly placeholder="Otomatis terisi (Notax / Paytax target)" />
+        <div class="input-group">
+          <label for="netReceive">Perkiraan robux bersih diterima</label>
+          <input id="netReceive" type="text" readonly placeholder="Otomatis terisi" />
+        </div>
       </div>
 
       <div class="input-group">
@@ -184,6 +172,7 @@
       </div>
 
       <div class="result" id="toast"></div>
+
     </div>
 
     <div class="footer">
