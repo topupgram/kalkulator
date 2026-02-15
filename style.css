@@ -1,3 +1,5 @@
+/* style.css (FULL - updated) */
+
 :root {
   --bg: #C9DBF0;
   --card: #FFFFFF;
@@ -64,7 +66,7 @@ input[readonly], input:disabled {
   margin: 10px 0 14px;
 }
 
-/* default 2 kolom, tapi responsive */
+/* 2 kolom di desktop, 1 kolom di hp */
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -154,8 +156,6 @@ input[readonly], input:disabled {
 }
 
 .admin-auth { margin-bottom: 10px; }
-
-/* biar di hp nggak kepotong */
 .admin-auth-row { display:flex; gap:10px; flex-wrap: wrap; }
 
 .divider {
@@ -166,7 +166,7 @@ input[readonly], input:disabled {
 
 .hidden { display: none !important; }
 
-/* pilihan robux 3 tombol */
+/* ===== Pilihan Robux: 3 tombol ===== */
 .type-grid{
   display:grid;
   grid-template-columns: repeat(3, 1fr);
@@ -197,27 +197,27 @@ input[readonly], input:disabled {
   border-color: transparent;
 }
 
-/* item buttons: 3 kolom, responsive */
+/* ===== Item buttons: PAKSA 3 kolom di semua device ===== */
 .item-grid{
   display:grid;
   grid-template-columns: repeat(3, 1fr);
-  gap:10px;
+  gap:8px;
 }
 
 .item-btn{
   width:100%;
-  padding:12px 10px;
+  padding:10px 8px;
   border-radius:12px;
   border:1px solid var(--border);
   background:#fff;
   color:var(--text);
   font-weight:600;
-  font-size:13px;
+  font-size:12px;
   cursor:pointer;
   transition:0.18s;
   text-align:left;
-  line-height:1.2;
-  min-height: 54px;
+  line-height:1.15;
+  min-height: 48px;
 }
 
 .item-btn small{
@@ -225,6 +225,7 @@ input[readonly], input:disabled {
   margin-top:6px;
   font-weight:600;
   color: var(--muted);
+  font-size: 11px;
 }
 
 .item-btn:hover{
@@ -237,14 +238,9 @@ input[readonly], input:disabled {
   border-color: rgba(127,170,220,0.75);
 }
 
-/* RESPONSIVE: layar sempit */
+/* responsive: hanya ubah row jadi 1 kolom, JANGAN ubah item-grid */
 @media (max-width: 420px){
   .card { padding: 18px; }
   .row { grid-template-columns: 1fr; }
   .type-grid { grid-template-columns: 1fr; }
-  .item-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 340px){
-  .item-grid { grid-template-columns: 1fr; }
 }
