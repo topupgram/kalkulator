@@ -1,3 +1,6 @@
+// app.js (FULL) - Admin login via POPUP (lebih stabil di GitHub Pages)
+// Firebase CDN v9 (modular)
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
 import {
   getFirestore,
@@ -13,8 +16,7 @@ import {
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   onAuthStateChanged,
   signOut
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
@@ -41,7 +43,7 @@ const db = getFirestore(app);
 
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
-// opsional: paksa pilih akun tiap login (biar tidak nyangkut akun lain)
+// biar selalu muncul pilihan akun (ngurangin nyangkut akun lain)
 provider.setCustomParameters({ prompt: "select_account" });
 
 // =======================
@@ -84,7 +86,7 @@ function showToast(message, type = "ok"){
   toast.textContent = message;
   toast.style.display = "block";
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(()=> toast.style.display = "none", 2400);
+  showToast._t = setTimeout(()=> toast.style.display = "none", 2600);
 }
 function slugify(s){
   return String(s || "")
@@ -169,18 +171,15 @@ const btnUpsertItem = document.getElementById("btnUpsertItem");
 // ADMIN UI LOCK/UNLOCK
 // =======================
 function setAdminControlsEnabled(canEdit){
-  // rates
   if(adminGigRate) adminGigRate.disabled = !canEdit;
   if(adminPaytaxRate) adminPaytaxRate.disabled = !canEdit;
   if(adminNotaxRate) adminNotaxRate.disabled = !canEdit;
   if(btnSaveRates) btnSaveRates.disabled = !canEdit;
 
-  // maps
   if(adminNewMapName) adminNewMapName.disabled = !canEdit;
   if(btnAddMap) btnAddMap.disabled = !canEdit;
   if(adminMapSelect) adminMapSelect.disabled = !canEdit;
 
-  // items
   if(adminNewItemName) adminNewItemName.disabled = !canEdit;
   if(adminNewItemRobux) adminNewItemRobux.disabled = !canEdit;
   if(btnUpsertItem) btnUpsertItem.disabled = !canEdit;
@@ -192,7 +191,6 @@ function applyAdminUI(user){
 
   if(!wantAdminPanel) return;
 
-  // tombol login/logout
   if(btnAdminLogin) btnAdminLogin.style.display = user ? "none" : "inline-block";
   if(btnAdminLogout) btnAdminLogout.style.display = user ? "inline-block" : "none";
 
@@ -202,10 +200,9 @@ function applyAdminUI(user){
     else adminStatus.textContent = `Login: ${user.email} (BUKAN ADMIN ❌)`;
   }
 
-  // kunci/aktifkan kontrol admin
   setAdminControlsEnabled(isAdmin);
 
-  // kalau login bukan admin -> langsung logout
+  // kalau yang login bukan admin, langsung logout supaya nggak “nempel”
   if(user && !isAdmin){
     signOut(auth).catch(()=>{});
     showToast("Email ini bukan admin. Logout otomatis.", "error");
@@ -289,8 +286,7 @@ function calcGig(){
   if(netReceiveEl) netReceiveEl.value = "";
   if(hargaEl) hargaEl.value = formatRupiah(harga);
 
-  if(hargaHint) hargaHint.textContent =
-    `Rumus: harga = gigRate × robux`;
+  if(hargaHint) hargaHint.textContent = `Rumus: harga = gigRate × robux`;
 }
 
 function recalc(){
@@ -313,8 +309,6 @@ function applyGigModeUI(){
     gigManualWrap?.classList.add("hidden");
     gigListWrap?.classList.remove("hidden");
   }
-
-  // reset output only
   clearOutputs();
   recalc();
 }
@@ -326,7 +320,6 @@ function applyTypeUI(){
   notaxFields?.classList.add("hidden");
   gigFields?.classList.add("hidden");
 
-  // clear inputs each switch biar bersih
   if(targetNet) targetNet.value = "";
   if(robuxInput) robuxInput.value = "";
   if(gigRobuxPrice) gigRobuxPrice.value = "";
@@ -363,7 +356,7 @@ function bindRates(){
       if(Number.isFinite(n) && n > 0) notaxRate = Math.round(n);
     }
 
-    // admin inputs sync
+    // sync admin inputs
     if(adminGigRate) adminGigRate.value = gigRate;
     if(adminPaytaxRate) adminPaytaxRate.value = paytaxRate;
     if(adminNotaxRate) adminNotaxRate.value = notaxRate;
@@ -384,13 +377,9 @@ function bindMaps(){
     mapsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .map(x => ({ id: x.id, name: x.name || x.id }));
 
-    // public select
     setSelectOptions(gigMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
-
-    // admin select
     setSelectOptions(adminMapSelect, mapsCache, mapsCache.length ? "Pilih maps..." : "Belum ada maps");
 
-    // auto pick first map for public
     if(mapsCache.length){
       if(!selectedMapId) selectedMapId = mapsCache[0].id;
       if(gigMapSelect && !gigMapSelect.value) gigMapSelect.value = selectedMapId;
@@ -432,7 +421,6 @@ function bindItemsForMap(mapId){
     setSelectOptions(gigItemSelect, itemsCache, itemsCache.length ? "Pilih item..." : "Belum ada item");
 
     if(itemsCache.length){
-      // keep selection if exists
       const stillExists = itemsCache.some(x => x.id === selectedItemId);
       if(!stillExists) selectedItemId = itemsCache[0].id;
       if(gigItemSelect) gigItemSelect.value = selectedItemId;
@@ -480,7 +468,7 @@ async function saveRates(){
     showToast("Rate berhasil disimpan ✅");
   }catch(e){
     console.error(e);
-    showToast("Gagal simpan rate.", "error");
+    showToast(`Gagal simpan rate: ${e?.code || e?.message || "unknown"}`, "error");
   }
 }
 
@@ -504,7 +492,7 @@ async function addMap(){
     showToast("Maps tersimpan ✅");
   }catch(e){
     console.error(e);
-    showToast("Gagal tambah maps.", "error");
+    showToast(`Gagal tambah maps: ${e?.code || e?.message || "unknown"}`, "error");
   }
 }
 
@@ -537,7 +525,7 @@ async function upsertItem(){
     showToast("Item tersimpan ✅");
   }catch(e){
     console.error(e);
-    showToast("Gagal simpan item.", "error");
+    showToast(`Gagal simpan item: ${e?.code || e?.message || "unknown"}`, "error");
   }
 }
 
@@ -572,46 +560,60 @@ function handleGigItemChange(){
 // =======================
 // INIT
 // =======================
-document.addEventListener("DOMContentLoaded", async () => {
-  // show admin panel only if admin=1 (NO AUTO LOGIN)
+document.addEventListener("DOMContentLoaded", () => {
+  // show admin panel only if admin=1
   showAdminPanelIfNeeded();
 
-  // Default state: lock admin controls until admin verified
+  // default: lock admin controls until verified
   if(wantAdminPanel) setAdminControlsEnabled(false);
 
-  // Finish redirect result if we just came back from Google
-  // (doesn't redirect again, only resolves result)
-  try { await getRedirectResult(auth); } catch(e) {}
-
-  // Auth state listener
+  // auth state listener
   onAuthStateChanged(auth, (user) => {
     applyAdminUI(user);
   });
 
-  // Bind public listeners (works for everyone)
+  // public listeners
   applyTypeUI();
   bindRates();
   bindMaps();
 
-  // Public calc events
+  // public calc events
   gpType?.addEventListener("change", () => { applyTypeUI(); recalc(); });
 
-  targetNet?.addEventListener("input", () => { if(gpType?.value === "paytax") calcPaytax(); });
-  robuxInput?.addEventListener("input", () => { if(gpType?.value === "notax") calcNotax(); });
+  targetNet?.addEventListener("input", () => {
+    if(gpType?.value === "paytax") calcPaytax();
+  });
+
+  robuxInput?.addEventListener("input", () => {
+    if(gpType?.value === "notax") calcNotax();
+  });
 
   gigMode?.addEventListener("change", applyGigModeUI);
-  gigRobuxPrice?.addEventListener("input", () => { if(gpType?.value === "gig") calcGig(); });
+
+  gigRobuxPrice?.addEventListener("input", () => {
+    if(gpType?.value === "gig") calcGig();
+  });
 
   gigMapSelect?.addEventListener("change", handleGigMapChange);
   gigItemSelect?.addEventListener("change", handleGigItemChange);
 
-  // Admin buttons
+  // admin buttons
   btnAdminLogin?.addEventListener("click", async () => {
     try {
-      await signInWithRedirect(auth, provider);
+      const res = await signInWithPopup(auth, provider);
+
+      const email = (res.user?.email || "").toLowerCase();
+      if (email !== ADMIN_EMAIL.toLowerCase()) {
+        await signOut(auth);
+        showToast("Email ini bukan admin. Logout otomatis.", "error");
+        return;
+      }
+
+      showToast("Login admin berhasil ✅");
+      // onAuthStateChanged akan update UI
     } catch (e) {
       console.error(e);
-      showToast("Login gagal/dibatalkan.", "error");
+      showToast(`Login gagal: ${e?.code || e?.message || "unknown"}`, "error");
     }
   });
 
